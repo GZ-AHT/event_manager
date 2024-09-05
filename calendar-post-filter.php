@@ -93,7 +93,15 @@ function cpf_small_calendar_shortcode() {
             }
             wp_reset_postdata();
         } else {
-            echo '<p>No events found.</p>';
+            echo '<div class="no_event_found"><div>
+                    <div class="nofound_img">
+                        <div class="left">
+                        </div>
+                        <div class="right">
+                            <p>No events found.</p>
+                        </div>
+                    </div>
+                 </div></div>';
         }
         ?>
     </div>
