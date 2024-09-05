@@ -30,13 +30,72 @@ add_action('wp_enqueue_scripts', 'cpf_enqueue_datepicker_scripts');
 
 
 // Shortcode to display calendar and posts/events
-
 function cpf_small_calendar_shortcode() {
     ob_start();
     ?>
     <div id="cpf-small-calendar"></div>
     <div id="cpf-posts-events">
-        <p>Please select a date from the calendar above to see the posts or events.</p>
+        <?php
+        // Display all events on initial load
+        $args = array(
+            'post_type' => 'event',
+            'posts_per_page' => -1, // Show all events
+            'meta_query' => array(
+                array(
+                    'key' => '_event_start_date',
+                    'compare' => 'EXISTS',
+                    'type' => 'DATE'
+                )
+            ),
+        );
+
+        $query = new WP_Query($args);
+        if ($query->have_posts()) {
+            while ($query->have_posts()) {
+                $query->the_post();
+
+                // Retrieve custom fields (you can use ACF or get_post_meta)
+                $event_start_date = get_post_meta(get_the_ID(), '_event_start_date', true);
+                $event_end_date = get_post_meta(get_the_ID(), '_event_end_date', true);
+                $location = get_field('event_location');
+                $website = get_field('event_website');
+                $tickets = get_field('event_tickets');
+                $event_permalink = get_permalink();
+
+                // Countdown calculation
+                $event_start_timestamp = strtotime($event_start_date);
+                $now = time();
+                $diff_in_seconds = $event_start_timestamp - $now;
+                $days_remaining = floor($diff_in_seconds / (60 * 60 * 24));
+
+                $countdown_output = $days_remaining > 0 ? "<div class='event-countdown'><strong>$days_remaining days</strong></div>" : "<div class='event-countdown'><strong>The event has started!</strong></div>";
+                ?>
+                <div class="cpf-post-event-item">
+                    <div class="left_box">
+                        <?php if (has_post_thumbnail()) : ?>
+                            <img src="<?php echo get_the_post_thumbnail_url(); ?>" alt="<?php the_title(); ?>">
+                        <?php else: ?>
+                            <img src="<?php echo plugin_dir_url(__FILE__) . 'images/default-image.jpg'; ?>" alt="Default Image">
+                        <?php endif; ?>
+                    </div>
+                    <div class="right_box">
+                        <h3><a href="<?php echo esc_url($event_permalink); ?>"><?php the_title(); ?></a></h3> <!-- Title as permalink -->
+                        <p>Start Date: <?php echo esc_html($event_start_date); ?></p>
+                        <p>End Date: <?php echo esc_html($event_end_date); ?></p>
+                        <p>Location: <?php echo !empty($location) ? esc_html($location) : 'N/A'; ?></p>
+                        <p>Website: <?php echo !empty($website) ? '<a href="' . esc_url($website) . '">' . esc_url($website) . '</a>' : 'N/A'; ?></p>
+                        <p><?php the_excerpt(); ?></p>
+                        <p>Tickets: <?php echo !empty($tickets) ? esc_html($tickets) : 'N/A'; ?></p>
+                        <?php echo $countdown_output; ?>
+                    </div>
+                </div>
+                <?php
+            }
+            wp_reset_postdata();
+        } else {
+            echo '<p>No events found.</p>';
+        }
+        ?>
     </div>
     <script>
     jQuery(document).ready(function($) {
@@ -53,7 +112,7 @@ function cpf_small_calendar_shortcode() {
                         if (response.success) {
                             $('#cpf-posts-events').html(response.data);
                         } else {
-                            $('#cpf-posts-events').html('<p>' + response.data + '</p>');
+                            $('#cpf-posts-events').html('<p>No events found for this date.</p>');
                         }
                     }
                 });
@@ -65,6 +124,7 @@ function cpf_small_calendar_shortcode() {
     return ob_get_clean();
 }
 add_shortcode('cpf_small_calendar', 'cpf_small_calendar_shortcode');
+
 
 // End Short Code 
 // Event date start
@@ -112,23 +172,7 @@ function cpf_filter_posts_events() {
     $selected_date = isset($_POST['selected_date']) ? wp_unslash($_POST['selected_date']) : '';
     $selected_date = sanitize_text_field($selected_date);
 
-
-// Now you can safely use $selected_date in your code
-
-
     $formatted_date = gmdate('Y-m-d', strtotime($selected_date)); // Format the date as needed
-
-    // $args = array(
-    //     'post_type' => 'event',
-    //     'meta_query' => array(
-    //         array(
-    //             'key' => '_event_start_date',
-    //             'value' => $formatted_date,
-    //             'compare' => '=',
-    //             'type' => 'DATE'
-    //         ),
-    //     ),
-    // );
 
     $args = array(
         'post_type' => 'event',
@@ -136,45 +180,40 @@ function cpf_filter_posts_events() {
             array(
                 'key' => '_event_start_date',
                 'value' => $formatted_date,
-                'compare' => '=',
+                'compare' => '<=',
+                'type' => 'DATE'
+            ),
+            array(
+                'key' => '_event_end_date',
+                'value' => $formatted_date,
+                'compare' => '>=',
                 'type' => 'DATE'
             ),
         ),
     );
-    
 
-    // var_dump($args );
     $query = new WP_Query($args);
-   
     if ($query->have_posts()) {
         ob_start();
         while ($query->have_posts()) {
             $query->the_post();
 
-            // Get custom fields (update these keys with actual field names)
-            $event_start_date = get_post_meta(get_the_ID(), '_event_start_date', true); // Use correct key for start date
-            $location = get_post_meta(get_the_ID(), 'event_location', true);
-            $tickets = get_post_meta(get_the_ID(), 'event_tickets', true);
-            $due_dates = get_post_meta(get_the_ID(), 'event_due_dates', true);
-            $website = get_post_meta(get_the_ID(), 'event_website', true);
+            // Retrieve custom fields
+            $event_start_date = get_post_meta(get_the_ID(), '_event_start_date', true);
+            $event_end_date = get_post_meta(get_the_ID(), '_event_end_date', true);
 
-            error_log('Location: ' . $location);
-            error_log('Tickets: ' . $tickets);
-            error_log('Website: ' . $website);
+            // $location = get_post_meta(get_the_ID(), 'event_location', true);
+            // $tickets = get_post_meta(get_the_ID(), 'event_tickets', true);
+            // $website = get_post_meta(get_the_ID(), 'event_website', true);
 
-            $location = get_post_meta(get_the_ID(), 'event_location', true) ?: 'N/A';
-            $tickets = get_post_meta(get_the_ID(), 'event_tickets', true) ?: 'N/A';
-            $website = get_post_meta(get_the_ID(), 'event_website', true) ?: 'N/A';
+            $location = get_field('event_location');
+            $website = get_field('event_website');
+            $tickets = get_field('event_tickets');
 
-            $location = get_post_meta(get_the_ID(), 'event_location', true);
-            if ($location) {
-                echo '<p>Location: ' . esc_html($location) . '</p>';
-            } else {
-                echo '<p>Location not found.</p>';
-            }
-
-
-
+            // echo '<pre>';
+            // $post_meta = get_post_meta(get_the_ID());
+            // print_r($post_meta);
+            // echo '</pre>';
 
             // Countdown calculation
             $event_start_timestamp = strtotime($event_start_date);
@@ -188,6 +227,7 @@ function cpf_filter_posts_events() {
                 $countdown_output = "<div class='event-countdown'><strong>The event has started!</strong></div>";
             }
 
+            // Output with default values if empty
             ?>
             <div class="cpf-post-event-item">
                 <div class="left_box">
@@ -199,12 +239,12 @@ function cpf_filter_posts_events() {
                 </div>
                 <div class="right_box">
                     <h3>Name: <?php the_title(); ?></h3>
-                    <p>Date: <?php echo esc_html($event_start_date); ?></p>
-                    <p>Location: <?php echo esc_html($location); ?></p>
-                    <p>Website: <a href="<?php echo esc_url($website); ?>"><?php echo esc_url($website); ?></a></p>
+                    <p>Start Date: <?php echo esc_html($event_start_date); ?></p>
+                    <p>End Date: <?php echo esc_html($event_end_date); ?></p>
+                    <p>Location: <?php echo !empty($location) ? esc_html($location) : 'N/A'; ?></p>
+                    <p>Website: <?php echo !empty($website) ? '<a href="' . esc_url($website) . '">' . esc_url($website) . '</a>' : 'N/A'; ?></p>
                     <p><?php the_excerpt(); ?></p>
-                    <p>Tickets: <?php echo esc_html($tickets); ?></p>
-                    <p>Due Dates: <?php echo esc_html($due_dates); ?></p>
+                    <p>Tickets: <?php echo !empty($tickets) ? esc_html($tickets) : 'N/A'; ?></p>
                     <?php echo $countdown_output; ?>
                 </div>
             </div>
