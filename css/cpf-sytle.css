@@ -46,7 +46,17 @@
     display: block;
 }
 
+.highlight-event a{
+    background-color: #ff0!important; /* Yellow background for highlighted dates */
+    color: #000; /* Black text for better visibility */
+    display: block;
+}
 
 .no_event_found{
     padding: 15px;
+}
+
+.nofound_img img{
+    width: 250px;
+    max-width: 100%;
 }

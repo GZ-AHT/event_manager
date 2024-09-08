@@ -93,9 +93,11 @@ function cpf_small_calendar_shortcode() {
             }
             wp_reset_postdata();
         } else {
+           $nofoundeventimg = plugins_url('/css/cpf-sytle.css', __FILE__);
             echo '<div class="no_event_found"><div>
                     <div class="nofound_img">
                         <div class="left">
+                            <img src="'.$nofoundeventimg.'" alt="photo">
                         </div>
                         <div class="right">
                             <p>No events found.</p>
@@ -107,8 +109,52 @@ function cpf_small_calendar_shortcode() {
     </div>
     <script>
     jQuery(document).ready(function($) {
+    $('#cpf-small-calendar').datepicker({
+        onSelect: function(dateText) {
+            // First AJAX request to get event dates
+            $.ajax({
+                type: 'POST',
+                url: cpf_ajax_object.ajax_url,
+                data: {
+                    action: 'cpf_get_event_dates',
+                    selected_date: dateText
+                },
+                success: function(response) {
+                    var eventDates = response.data;
+                    initializeDatepicker(eventDates);
+                }
+            });
+
+            // Second AJAX request to filter posts/events
+            $.ajax({
+                type: 'POST',
+                url: cpf_ajax_object.ajax_url,
+                data: {
+                    action: 'cpf_filter_posts_events',
+                    selected_date: dateText
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#cpf-posts-events').html(response.data);
+                    } else {
+                        $('#cpf-posts-events').html('<p>No events found for this date.</p>');
+                    }
+                }
+            });
+        }
+    });
+
+    // Initialize the datepicker with event dates and custom day names
+    function initializeDatepicker(eventDates) {
         $('#cpf-small-calendar').datepicker({
+            beforeShowDay: function(date) {
+                var formattedDate = $.datepicker.formatDate('yy-mm-dd', date);
+                var isEventDate = eventDates.indexOf(formattedDate) !== -1;
+                console.log('Checking date:', formattedDate, 'Is event date:', isEventDate);
+                return [true, isEventDate ? 'highlight-event' : ''];
+            },
             onSelect: function(dateText) {
+                // AJAX request for filtering posts/events
                 $.ajax({
                     type: 'POST',
                     url: cpf_ajax_object.ajax_url,
@@ -126,7 +172,26 @@ function cpf_small_calendar_shortcode() {
                 });
             }
         });
-    });
+
+        // Rebuild datepicker to reflect changes
+        $('#cpf-small-calendar').datepicker('refresh');
+
+        // Apply class directly to the correct anchor tag within the cells
+        setTimeout(function() {
+            $('#cpf-small-calendar td a').each(function() {
+                var date = $(this).text();
+                var currentDate = new Date($('#cpf-small-calendar').datepicker('getDate'));
+                currentDate.setDate(parseInt(date));
+                var formattedDate = $.datepicker.formatDate('yy-mm-dd', currentDate);
+
+                if (eventDates.indexOf(formattedDate) !== -1) {
+                    $(this).addClass('highlight-event');  // Add the highlight class to <a> tags
+                }
+            });
+        }, 10); // Small delay to ensure Datepicker is rendered before applying classes
+    }
+});
+
     </script>
     <?php
     return ob_get_clean();
