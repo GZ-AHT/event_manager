@@ -1,4 +1,6 @@
 jQuery(document).ready(function($) {
+        // console.log("Bangladesh");
+    // alert("Bangladesh");
 
     // Function to fetch event dates and initialize datepicker
     function highlightEventDates() {

@@ -37,9 +37,13 @@ function cpf_small_calendar_shortcode() {
     <div id="cpf-posts-events">
         <?php
         // Display all events on initial load
+        // Events - Arrange in order of closest date. At moment, closest date is last in the list.
         $args = array(
             'post_type' => 'event',
             'posts_per_page' => -1, // Show all events
+            'meta_key' => '_event_start_date',
+            'orderby' => 'meta_value',
+            'order' => 'ASC', // Ascending order, closest date first
             'meta_query' => array(
                 array(
                     'key' => '_event_start_date',
